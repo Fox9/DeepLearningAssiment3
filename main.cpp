@@ -59,7 +59,7 @@ void initTarget(float target[], int numberOnPicture) {
 
 void get_output_first_hidden(float hiddenLyaer[], int input[], float weights[numOfFirstHiddenLayerNodes][numOfInputNodes]) {
     
-    for(int i = 0; i < numOfHiddenNodes; i++) {
+    for(int i = 0; i < numOfFirstHiddenLayerNodes; i++) {
         float resultOfMultiplication = 0;
         for(int j = 0; j < numOfInputNodes; j++) {
             resultOfMultiplication += input[j] * weights[i][j];
@@ -69,24 +69,24 @@ void get_output_first_hidden(float hiddenLyaer[], int input[], float weights[num
     hiddenLyaer[numOfFirstHiddenLayerNodes - 1] = 1; //bias for hidden nodes
 }
 
-void get_output_first_hidden(float secondHiddenLayerNodes[], float firstHiddenLayerNodes[], float weights[numOfSecondHiddenLayerNodes][numOfFirstHiddenLayerNodes]) {
+void get_output_second_hidden(float secondHiddenLayerNodes[], float firstHiddenLayerNodes[], float weights[numOfSecondHiddenLayerNodes][numOfFirstHiddenLayerNodes]) {
     
     for(int i = 0; i < numOfSecondHiddenLayerNodes; i++) {
         float resultOfMultiplication = 0;
         for(int j = 0; j < numOfFirstHiddenLayerNodes; j++) {
-            resultOfMultiplication += firstHiddenLayerNodes[j] * secondHiddenLayerNodes[i][j];
+            resultOfMultiplication += firstHiddenLayerNodes[j] * weights[i][j];
         }
-        hiddenLyaer[i] = resultOfMultiplication;
+        secondHiddenLayerNodes[i] = resultOfMultiplication;
     }
-    secondHiddenLayerNodes[secondHiddenLayerNodes - 1] = 1; //bias for hidden nodes
+    secondHiddenLayerNodes[numOfSecondHiddenLayerNodes - 1] = 1; //bias for hidden nodes
 }
 
 
-void get_output(float output[], float input[], float weights[numOfOutputNodes][numOfHiddenNodes]) {
+void get_output(float output[], float input[], float weights[numOfOutputNodes][numOfSecondHiddenLayerNodes]) {
     
     for(int i = 0; i < numOfOutputNodes; i++) {
         float resultOfMultiplication = 0;
-        for(int j = 0; j < numOfHiddenNodes; j++) {
+        for(int j = 0; j < numOfSecondHiddenLayerNodes; j++) {
             resultOfMultiplication += input[j] * weights[i][j];
         }
         output[i] = resultOfMultiplication;
@@ -101,24 +101,54 @@ void squash_output(float output[]) {
     }
 }
 
+void squash_fist_hidden(float output[]) {
+    
+    for(int i = 0; i < numOfFirstHiddenLayerNodes; i++) {
+        output[i] = 1.0 / (1.0 + pow(M_E, -1 * output[i]));
+        // printf("squashed output[%d] = %f\n", i, output[i]);
+    }
+}
+
+void squash_second_hidden(float output[]) {
+    
+    for(int i = 0; i < numOfSecondHiddenLayerNodes; i++) {
+        output[i] = 1.0 / (1.0 + pow(M_E, -1 * output[i]));
+        // printf("squashed output[%d] = %f\n", i, output[i]);
+    }
+}
+
 void get_error_for_output(float errors[], float target[], float output[]) {
     for(int i = 0; i < numOfOutputNodes; i++) {
         errors[i] = (target[i] - output[i]) * output[i] * (1 - output[i]);
     }
 }
 
-void get_error_for_hidden_layer(float errorsOutput[], float errorsHidden[], float hiddenOutput[], float weightsOutput[numOfOutputNodes][numOfHiddenNodes]) {
-    float resultOfMultiplication = 0;
+void get_error_for_second_hidden_layer(float errorsOutput[], float errorsHidden[], float hiddenOutput[], float weights[numOfOutputNodes][numOfSecondHiddenLayerNodes]) {
+	float resultOfMultiplication = 0;
     for(int i = 0; i < numOfOutputNodes; i++) {
-        for(int j = 0; j < numOfHiddenNodes; j++) {
-            resultOfMultiplication += errorsOutput[j] * weightsOutput[i][j];
+        for(int j = 0; j < numOfSecondHiddenLayerNodes; j++) {
+            resultOfMultiplication += errorsOutput[i] * weights[i][j];
         }
     }
     
-    for(int i = 0; i < numOfHiddenNodes; i++) {
-        errorsOutput[i] = hiddenOutput[i] * (1 - hiddenOutput[i]) * resultOfMultiplication;
+    for(int i = 0; i < numOfSecondHiddenLayerNodes; i++) {
+        errorsHidden[i] = hiddenOutput[i] * (1 - hiddenOutput[i]) * resultOfMultiplication;
+    }
+
+
+}
+
+void get_error_for_first_hidden_layer(float errorsSecondHidden[], float errorsFirstHidden[], float hiddenOutput[], float weights[numOfSecondHiddenLayerNodes][numOfFirstHiddenLayerNodes]) {
+	float resultOfMultiplication = 0;
+    for(int i = 0; i < numOfSecondHiddenLayerNodes; i++) {
+        for(int j = 0; j < numOfFirstHiddenLayerNodes; j++) {
+            resultOfMultiplication += errorsSecondHidden[i] * weights[i][j];
+        }
     }
     
+    for(int i = 0; i < numOfFirstHiddenLayerNodes; i++) {
+        errorsFirstHidden[i] = hiddenOutput[i] * (1 - hiddenOutput[i]) * resultOfMultiplication;
+    }
 }
 
 float getAverageError(float error[]) {
@@ -130,20 +160,30 @@ float getAverageError(float error[]) {
     return (errorsSum / numOfOutputNodes);
 }
 
-void update_weights_output(float learningRate, float hidden[], float errors[], float weights[numOfOutputNodes][numOfHiddenNodes]) {
-    float deltaWeights[numOfOutputNodes][numOfHiddenNodes];
+void update_weights_output(float learningRate, float hiddenSecond[], float errors[], float weights[numOfOutputNodes][numOfSecondHiddenLayerNodes]) {
+    float deltaWeights[numOfOutputNodes][numOfSecondHiddenLayerNodes];
     for(int i = 0; i < numOfOutputNodes; i++) {
-        for(int j = 0; j < numOfHiddenNodes; j++) {
-            deltaWeights[i][j] = learningRate  * hidden[j] * errors[i];
+        for(int j = 0; j < numOfSecondHiddenLayerNodes; j++) {
+            deltaWeights[i][j] = learningRate  * hiddenSecond[j] * errors[i];
             weights[i][j] += deltaWeights[i][j];
         }
     }
 }
 
 
-void update_weights_hidden(float learningRate, int input[], float errors[], float weights[numOfHiddenNodes][numOfInputNodes]) {
-    float deltaWeights[numOfHiddenNodes][numOfInputNodes];
-    for(int i = 0; i < numOfHiddenNodes; i++) {
+void update_weights_second_hidden(float learningRate, float hiddenfirst[], float errors[], float weights[numOfSecondHiddenLayerNodes][numOfFirstHiddenLayerNodes]) {
+    float deltaWeights[numOfSecondHiddenLayerNodes][numOfFirstHiddenLayerNodes];
+    for(int i = 0; i < numOfSecondHiddenLayerNodes; i++) {
+        for(int j = 0; j < numOfFirstHiddenLayerNodes; j++) {
+            deltaWeights[i][j] = learningRate * hiddenfirst[j] * errors[i];
+            weights[i][j] += deltaWeights[i][j];
+        }
+    }
+}
+
+void update_weights_first_hidden(float learningRate, int input[], float errors[], float weights[numOfFirstHiddenLayerNodes][numOfInputNodes]) {
+    float deltaWeights[numOfFirstHiddenLayerNodes][numOfInputNodes];
+    for(int i = 0; i < numOfFirstHiddenLayerNodes; i++) {
         for(int j = 0; j < numOfInputNodes; j++) {
             deltaWeights[i][j] = learningRate * input[j] * errors[i];
             weights[i][j] += deltaWeights[i][j];
@@ -182,7 +222,7 @@ int main(int argc, char const *argv[]) {
         return -1;
     }
     
-    float learningRate = 0.1;
+    float learningRate = 0.01;
     
     int inputNodes[numOfInputNodes];
     float firstHiddenLayerNodes[numOfFirstHiddenLayerNodes];
@@ -215,12 +255,12 @@ int main(int argc, char const *argv[]) {
             initTarget(target, zTestingData[picIndex].label);
             
             get_output_first_hidden(firstHiddenLayerNodes, inputNodes, weightsFirstHidden);
-            squash_output(firstHiddenLayerNodes);
+            squash_fist_hidden(firstHiddenLayerNodes);
             
             get_output_second_hidden(secondHiddenLayerNodes, firstHiddenLayerNodes, weightsSecondHidden);
-            squash_output(secondHiddenLayerNodes);
+            squash_second_hidden(secondHiddenLayerNodes);
             
-            get_output(outputNodes, hiddenNodes, weightsOutput);
+            get_output(outputNodes, secondHiddenLayerNodes, weightsOutput);
             squash_output(outputNodes);
             
             get_error_for_output(errorsOutput, target, outputNodes);
@@ -232,26 +272,35 @@ int main(int argc, char const *argv[]) {
         
         for(int picIndex = 0; picIndex < sizeData; picIndex++) {
             
-            get_input(inputNodes, zData, picIndex, 0);
+           	get_input(inputNodes, zData, picIndex, 0);
             
-            initTarget(target, inputNodes, zData[picIndex].label);
+            initTarget(target, zData[picIndex].label);
             
-            get_output_hidden(hiddenNodes, inputNodes, weightsHidden);
-            squash_output(hiddenNodes);
+            get_output_first_hidden(firstHiddenLayerNodes, inputNodes, weightsFirstHidden);
+            squash_fist_hidden(firstHiddenLayerNodes);
             
-            get_output(outputNodes, hiddenNodes, weightsOutput);
+            get_output_second_hidden(secondHiddenLayerNodes, firstHiddenLayerNodes, weightsSecondHidden);
+            squash_second_hidden(secondHiddenLayerNodes);
+            
+            get_output(outputNodes, secondHiddenLayerNodes, weightsOutput);
             squash_output(outputNodes);
             
-            get_error_for_output(errorsOutput, target, outputNodes);
-            update_weights_output(learningRate, hiddenNodes, errorsOutput, weightsOutput);
             
-            get_error_for_hidden_layer(errorsOutput, errorsHidden, hiddenNodes, weightsOutput);
-            update_weights_hidden(learningRate, inputNodes, errorsHidden, weightsHidden);
+            get_error_for_output(errorsOutput, target, outputNodes);
+            update_weights_output(learningRate, secondHiddenLayerNodes, errorsOutput, weightsOutput);
+            
+            get_error_for_second_hidden_layer(errorsOutput, errorsSecondHidden, secondHiddenLayerNodes, weightsOutput);
+            update_weights_second_hidden(learningRate, firstHiddenLayerNodes, errorsSecondHidden, weightsSecondHidden);
+
+            get_error_for_first_hidden_layer(errorsSecondHidden, errorsFirstHidden, firstHiddenLayerNodes, weightsSecondHidden);
+            update_weights_first_hidden(learningRate, inputNodes, errorsFirstHidden, weightsFirstHidden);
+            
         }
+
+        cout << endl;
         
     }
     
-    cout << endl;
     
     
     
